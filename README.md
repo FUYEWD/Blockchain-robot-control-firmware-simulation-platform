@@ -1,458 +1,423 @@
-🤖 自律機器人：基於區塊鏈的「誠實證明」系統
-用區塊鏈證明機器人的「言行一致」- 可實際運作的哲學實踐
+# 🤖 Honest Robot: Blockchain-Based Proof of Honesty System
 
-🎯 核心哲學命題
-「如何證明一台機器人沒有說謊？」
+> **Proving robot's integrity through blockchain** - A practical implementation of philosophical commitment
 
-🔧 實際實現方案
-機器人動作承諾 → 執行證明 → 鏈上驗證
+[English](#english) | [繁體中文](#繁體中文)
 
-📦 所需材料（800元內）
-ESP32-CAM（帶鏡頭） - 300元
+---
 
-SG90伺服馬達 x2 - 100元
+## 繁體中文
 
-OLED 0.96吋螢幕 - 100元
+### 🎯 核心概念
 
-按鈕模組 x3 - 60元
+**如何證明一台機器人沒有說謊？**
 
-雷射模組（5mW） - 50元
+這個專案透過區塊鏈技術，讓機器人的「承諾」與「行動」變得可驗證，實現真正的「言行一致」證明系統。
 
-其他線材 - 50元
+**工作原理：**
+```
+機器人宣稱 → 生成承諾Hash → 執行動作 → 產生執行證明 → 鏈上驗證
+```
 
-總計：660元
+### ✨ 主要特色
 
-🎭 場景設定：「誠實機器人」挑戰
-text
-機器人宣稱：「我會畫一個正方形」
-挑戰者：「證明你真的畫了正方形」
-🔄 完整工作流程
-text
-1. 機器人「承諾」要畫正方形 → 生成承諾Hash上鏈
-2. 機器人實際執行 → 用鏡頭拍攝過程
-3. 生成執行證明 → 影片關鍵幀的Merkle Root上鏈
-4. 任何人都能驗證：承諾Hash == 執行Hash
-5. 如果一致 → 機器人誠實
-6. 如果不一致 → 機器人說謊（有鏈上證據）
-💻 實際程式碼架構
-1. 硬體端：ESP32-CAM（300行C++）
-cpp
-// commitment.ino - 機器人誠實證明系統
-#include <WiFi.h>
-#include <HTTPClient.h>
-#include <esp_camera.h>
+- 🔒 **不可否認的承諾** - 機器人無法事後否認自己的承諾
+- 📸 **視覺化證明** - 透過攝影機捕捉實際執行過程
+- ⛓️ **區塊鏈驗證** - 所有證明永久記錄且公開可驗證
+- 💰 **低成本實現** - 總硬體成本低於 800 元台幣
+- ⚡ **即時驗證** - 任何人都能在 3 秒內驗證機器人的誠實度
+
+### 🎬 示範場景
+
+**情境：機器人畫正方形挑戰**
+
+1. **承諾階段** - 機器人宣稱：「我會畫一個邊長 10cm 的正方形」
+2. **執行階段** - 機器人實際畫正方形，攝影機記錄全程
+3. **驗證階段** - 觀眾可即時驗證承諾與執行是否一致
+
+### 📦 硬體材料清單
+
+| 組件 | 規格 | 價格 (TWD) |
+|------|------|-----------|
+| ESP32-CAM | 含鏡頭模組 | 300 |
+| SG90 伺服馬達 | x2 | 100 |
+| OLED 顯示器 | 0.96 吋 | 100 |
+| 按鈕模組 | x3 | 60 |
+| 雷射模組 | 5mW | 50 |
+| 線材與配件 | - | 50 |
+| **總計** | | **660** |
+
+### 🏗️ 系統架構
+
+```
+┌─────────────────┐
+│   ESP32-CAM     │  ← 硬體層：捕捉執行證明
+│   (機器人端)     │
+└────────┬────────┘
+         │
+         ↓ 承諾Hash + Merkle Root
+┌─────────────────┐
+│  Smart Contract │  ← 合約層：儲存與驗證
+│   (區塊鏈)       │
+└────────┬────────┘
+         │
+         ↓ 查詢與驗證
+┌─────────────────┐
+│  Web Frontend   │  ← 應用層：公開驗證介面
+│  (驗證器)        │
+└─────────────────┘
+```
+
+### 💻 核心程式碼
+
+#### 1. 硬體端 (ESP32-CAM)
+
+```cpp
+// HonestRobot.ino
+#include <ESP32Camera.h>
 #include <SHA256.h>
-#include <vector>
 
-// 鏡頭配置
-#define CAMERA_MODEL_AI_THINKER
-#include "camera_pins.h"
-
-// 動作承諾結構
-struct ActionCommitment {
-    String promise;      // "畫邊長10cm正方形"
-    bytes32 promiseHash; // 承諾的hash
-    uint32_t timestamp;  // 承諾時間
-    bytes32 merkleRoot;  // 執行證明的Merkle Root
-};
-
-// 生成視覺證明
-class VisualProof {
+class HonestRobot {
 private:
     std::vector<bytes32> frameHashes;
     
 public:
-    void capture_and_hash() {
-        camera_fb_t *fb = esp_camera_fb_get();
-        if(fb) {
-            // 計算影格hash
-            SHA256 sha256;
-            sha256.update(fb->buf, fb->len);
-            uint8_t* digest = sha256.digest();
-            
-            bytes32 frameHash;
-            memcpy(frameHash, digest, 32);
-            frameHashes.push_back(frameHash);
-            
-            esp_camera_fb_return(fb);
-            delete[] digest;
-        }
-    }
-    
-    bytes32 calculate_merkle_root() {
-        // 簡單Merkle Tree計算
-        std::vector<bytes32> current = frameHashes;
-        
-        while(current.size() > 1) {
-            std::vector<bytes32> next_level;
-            for(size_t i=0; i<current.size(); i+=2) {
-                if(i+1 < current.size()) {
-                    SHA256 sha256;
-                    sha256.update(current[i], 32);
-                    sha256.update(current[i+1], 32);
-                    uint8_t* digest = sha256.digest();
-                    
-                    bytes32 combined;
-                    memcpy(combined, digest, 32);
-                    next_level.push_back(combined);
-                    
-                    delete[] digest;
-                } else {
-                    next_level.push_back(current[i]);
-                }
-            }
-            current = next_level;
-        }
-        
-        return current[0];
-    }
-};
-
-// 機器人控制器
-class HonestRobot {
-private:
-    VisualProof proof;
-    ActionCommitment currentCommitment;
-    
-public:
-    // 步驟1：做出承諾
-    ActionCommitment make_promise(String promise_desc) {
+    // 步驟 1: 做出承諾
+    bytes32 makePromise(String description) {
         SHA256 sha256;
-        sha256.update(promise_desc.c_str(), promise_desc.length());
-        uint8_t* digest = sha256.digest();
-        
-        memcpy(currentCommitment.promiseHash, digest, 32);
-        currentCommitment.promise = promise_desc;
-        currentCommitment.timestamp = millis();
-        
-        delete[] digest;
+        sha256.update(description.c_str());
+        bytes32 hash = sha256.digest();
         
         // 承諾上鏈
-        send_to_blockchain("COMMIT", currentCommitment.promiseHash);
-        
-        return currentCommitment;
+        sendToBlockchain("COMMIT", hash);
+        return hash;
     }
     
-    // 步驟2：執行承諾（畫正方形）
-    void execute_promise() {
-        // 開始錄影證明
-        proof.capture_and_hash();
+    // 步驟 2: 執行並記錄
+    void executeWithProof() {
+        // 在關鍵動作點捕捉影像
+        captureAndHash(); // 起點
+        moveToPosition(10, 0);
+        captureAndHash(); // 第一個角
+        moveToPosition(10, 10);
+        captureAndHash(); // 第二個角
+        // ... 繼續完成動作
         
-        // 實際畫正方形
-        move_to(0, 0);      // 起點
-        proof.capture_and_hash();
-        
-        move_to(10, 0);     // 右邊
-        proof.capture_and_hash();
-        
-        move_to(10, 10);    // 下邊
-        proof.capture_and_hash();
-        
-        move_to(0, 10);     // 左邊
-        proof.capture_and_hash();
-        
-        move_to(0, 0);      // 回到起點
-        proof.capture_and_hash();
-        
-        // 計算執行證明
-        currentCommitment.merkleRoot = proof.calculate_merkle_root();
-        
-        // 執行證明上鏈
-        send_to_blockchain("EXECUTE", currentCommitment.merkleRoot);
+        // 計算 Merkle Root
+        bytes32 root = calculateMerkleRoot();
+        sendToBlockchain("EXECUTE", root);
     }
     
-    // 步驟3：生成驗證連結
-    String generate_verification_url() {
-        String url = "https://verifier.example.com/verify?";
-        url += "promiseHash=" + bytes32_to_hex(currentCommitment.promiseHash);
-        url += "&merkleRoot=" + bytes32_to_hex(currentCommitment.merkleRoot);
-        url += "&robotId=" + get_robot_id();
-        
-        return url;
+    // 步驟 3: 生成驗證 URL
+    String getVerificationURL() {
+        return "https://verifier.app/verify?proofId=" + proofId;
     }
 };
-2. 智能合約：誠實證明合約（Solidity）
-solidity
-// HonestyProof.sol
+```
+
+#### 2. 智能合約 (Solidity)
+
+```solidity
+// RobotHonestyVerifier.sol
 pragma solidity ^0.8.19;
 
 contract RobotHonestyVerifier {
-    struct RobotProof {
-        bytes32 promiseHash;      // 承諾的hash
-        bytes32 executionRoot;    // 執行證明的Merkle root
-        uint256 commitTime;       // 承諾時間
-        uint256 executeTime;      // 執行時間
+    struct Proof {
+        bytes32 promiseHash;      // 承諾的 hash
+        bytes32 executionRoot;    // 執行證明的 Merkle root
+        uint256 commitTime;       // 承諾時間戳
+        uint256 executeTime;      // 執行時間戳
         address robotAddress;     // 機器人地址
         bool verified;            // 是否已驗證
-        bytes32 verificationCode; // 驗證碼
     }
     
-    mapping(bytes32 => RobotProof) public proofs;
-    event PromiseMade(bytes32 indexed proofId, bytes32 promiseHash, address robot);
+    mapping(bytes32 => Proof) public proofs;
+    
+    event PromiseMade(bytes32 indexed proofId, bytes32 promiseHash);
     event ProofSubmitted(bytes32 indexed proofId, bytes32 executionRoot);
     event HonestyVerified(bytes32 indexed proofId, bool isHonest);
     
-    // 步驟1：機器人做出承諾
-    function makePromise(bytes32 promiseHash) public returns (bytes32) {
-        bytes32 proofId = keccak256(abi.encodePacked(promiseHash, block.timestamp, msg.sender));
+    // 提交承諾
+    function makePromise(bytes32 promiseHash) external returns (bytes32) {
+        bytes32 proofId = keccak256(
+            abi.encodePacked(promiseHash, block.timestamp, msg.sender)
+        );
         
-        proofs[proofId] = RobotProof({
+        proofs[proofId] = Proof({
             promiseHash: promiseHash,
             executionRoot: bytes32(0),
             commitTime: block.timestamp,
             executeTime: 0,
             robotAddress: msg.sender,
-            verified: false,
-            verificationCode: bytes32(0)
+            verified: false
         });
         
-        emit PromiseMade(proofId, promiseHash, msg.sender);
+        emit PromiseMade(proofId, promiseHash);
         return proofId;
     }
     
-    // 步驟2：提交執行證明
-    function submitProof(bytes32 proofId, bytes32 executionRoot) public {
-        RobotProof storage proof = proofs[proofId];
-        require(proof.robotAddress == msg.sender, "Not authorized");
-        require(proof.executeTime == 0, "Proof already submitted");
+    // 提交執行證明
+    function submitProof(bytes32 proofId, bytes32 executionRoot) external {
+        Proof storage proof = proofs[proofId];
+        require(proof.robotAddress == msg.sender, "Unauthorized");
+        require(proof.executeTime == 0, "Already submitted");
         
         proof.executionRoot = executionRoot;
         proof.executeTime = block.timestamp;
         
-        // 生成驗證碼（promiseHash和executionRoot的xor）
-        proof.verificationCode = proof.promiseHash ^ executionRoot;
-        
         emit ProofSubmitted(proofId, executionRoot);
     }
     
-    // 步驟3：驗證誠實性
+    // 驗證誠實度
     function verifyHonesty(
         bytes32 proofId,
-        bytes32[] calldata merkleProof,
-        bytes32 leafHash
-    ) public returns (bool) {
-        RobotProof storage proof = proofs[proofId];
-        require(!proof.verified, "Already verified");
-        
-        // 驗證leaf在Merkle tree中
-        bytes32 computedRoot = leafHash;
-        for (uint256 i = 0; i < merkleProof.length; i++) {
-            if (leafHash < merkleProof[i]) {
-                computedRoot = keccak256(abi.encodePacked(leafHash, merkleProof[i]));
-            } else {
-                computedRoot = keccak256(abi.encodePacked(merkleProof[i], leafHash));
-            }
-            leafHash = computedRoot;
-        }
+        bytes32[] calldata merklePath,
+        bytes32 leaf
+    ) external returns (bool) {
+        Proof storage proof = proofs[proofId];
+        bytes32 computedRoot = calculateMerkleRoot(leaf, merklePath);
         
         bool isHonest = (computedRoot == proof.executionRoot);
-        
         proof.verified = true;
-        emit HonestyVerified(proofId, isHonest);
         
+        emit HonestyVerified(proofId, isHonest);
         return isHonest;
     }
     
-    // 查詢機器人誠實度評分
-    function getHonestyScore(address robot) public view returns (uint256) {
-        // 簡化實現：計算驗證成功的比例
-        // 實際應有更複雜的評分機制
-        return 85; // 假設85%誠實度
+    // 計算誠實度評分
+    function getHonestyScore(address robot) external view returns (uint256) {
+        // 基於歷史記錄計算評分
+        // 實際實現可包含時間衰減、難度加權等
+        return calculateScore(robot);
     }
 }
-3. 驗證前端（React + TypeScript）
-typescript
-// VerifierApp.tsx - 任何人都能驗證機器人是否誠實
-import React, { useState } from 'react';
+```
+
+#### 3. 驗證前端 (React + TypeScript)
+
+```typescript
+// VerifierApp.tsx
 import { ethers } from 'ethers';
+import { useState } from 'react';
 
-const VerifierApp: React.FC = () => {
-  const [verificationUrl, setVerificationUrl] = useState('');
-  const [verificationResult, setVerificationResult] = useState<{
-    isHonest: boolean;
-    score: number;
-    proofDetails: any;
-  } | null>(null);
-
-  const verifyRobot = async () => {
-    // 從URL解析參數
-    const urlParams = new URLSearchParams(verificationUrl.split('?')[1]);
-    const promiseHash = urlParams.get('promiseHash');
-    const merkleRoot = urlParams.get('merkleRoot');
-    const robotId = urlParams.get('robotId');
-
-    // 連接合約
-    const provider = new ethers.providers.Web3Provider(window.ethereum);
-    const contract = new ethers.Contract(
-      '0x...合約地址...',
-      ['function verifyHonesty(bytes32,bytes32[],bytes32)'],
-      provider
-    );
-
-    // 進行驗證
-    const isHonest = await contract.verifyHonesty(
-      promiseHash,
-      [], // merkle proof（實際從API獲取）
-      merkleRoot
-    );
-
-    const score = await contract.getHonestyScore(robotId);
-
-    setVerificationResult({
-      isHonest,
-      score,
-      proofDetails: { promiseHash, merkleRoot }
-    });
-  };
-
-  return (
-    <div className="verifier-app">
-      <h1>🤖 機器人誠實驗證器</h1>
-      
-      <div className="input-section">
-        <input
-          type="text"
-          value={verificationUrl}
-          onChange={(e) => setVerificationUrl(e.target.value)}
-          placeholder="貼上機器人提供的驗證連結"
-        />
-        <button onClick={verifyRobot}>驗證誠實度</button>
-      </div>
-
-      {verificationResult && (
-        <div className={`result ${verificationResult.isHonest ? 'honest' : 'dishonest'}`}>
-          <h2>
-            {verificationResult.isHonest ? '✅ 誠實機器人' : '❌ 不誠實機器人'}
-          </h2>
-          <p>誠實度評分：{verificationResult.score}%</p>
-          
-          <div className="proof-details">
-            <h3>證明詳情：</h3>
-            <pre>{JSON.stringify(verificationResult.proofDetails, null, 2)}</pre>
-          </div>
-
-          <div className="verification-badge">
-            {/* 生成可分享的驗證徽章 */}
-            <img 
-              src={`https://badge.verifier.com/badge/${
-                verificationResult.isHonest ? 'honest' : 'dishonest'
-              }/${verificationResult.score}`} 
-              alt="誠實度徽章"
+export function VerifierApp() {
+    const [proofId, setProofId] = useState('');
+    const [result, setResult] = useState<{
+        isHonest: boolean;
+        score: number;
+        details: any;
+    } | null>(null);
+    
+    const verifyRobot = async () => {
+        const provider = new ethers.providers.Web3Provider(window.ethereum);
+        const contract = new ethers.Contract(
+            CONTRACT_ADDRESS,
+            CONTRACT_ABI,
+            provider
+        );
+        
+        // 取得證明詳情
+        const proof = await contract.proofs(proofId);
+        
+        // 驗證誠實度
+        const isHonest = await contract.verifyHonesty(
+            proofId,
+            merklePath,
+            leafHash
+        );
+        
+        // 取得評分
+        const score = await contract.getHonestyScore(proof.robotAddress);
+        
+        setResult({
+            isHonest,
+            score: score.toNumber(),
+            details: proof
+        });
+    };
+    
+    return (
+        <div className="verifier-container">
+            <h1>🤖 機器人誠實驗證器</h1>
+            <input
+                type="text"
+                placeholder="輸入 Proof ID"
+                value={proofId}
+                onChange={(e) => setProofId(e.target.value)}
             />
-          </div>
+            <button onClick={verifyRobot}>驗證</button>
+            
+            {result && (
+                <div className={`result ${result.isHonest ? 'honest' : 'dishonest'}`}>
+                    <h2>{result.isHonest ? '✅ 誠實機器人' : '❌ 不誠實機器人'}</h2>
+                    <p>誠實度評分: {result.score}%</p>
+                    <pre>{JSON.stringify(result.details, null, 2)}</pre>
+                </div>
+            )}
         </div>
-      )}
-    </div>
-  );
-};
-🎬 實際展示流程
-演示1：機器人做出承諾
-text
-1. 按下「承諾」按鈕
-2. 機器人語音：「我承諾畫一個正方形」
-3. OLED顯示：Promise Hash: 0xabc...
-4. 承諾上鏈完成
-演示2：執行與證明
-text
-1. 按下「執行」按鈕
-2. 雷射開始畫正方形（在紙上）
-3. 鏡頭每0.5秒拍照
-4. 生成Merkle Root
-5. OLED顯示：Merkle Root: 0xdef...
-演示3：現場驗證
-text
-1. 觀眾手機掃QR Code
-2. 進入驗證網站
-3. 網站顯示：
-   - 承諾：畫正方形 ✓
-   - 執行證明：✅ 有效
-   - 誠實度：95%
-   - 區塊鏈證明連結
-🧠 哲學深度實現
-1. 機器人「承諾」的數學化
-solidity
-// 不只是「說」，而是「數學承諾」
-bytes32 promiseHash = keccak256(abi.encodePacked("Draw square 10cm"));
-// 這個hash是機器人無法事後否認的
-2. 「言行一致」的可驗證性
-text
-承諾Hash：H("畫正方形")
-執行Hash：MerkleRoot(畫正方形的影片證據)
-
-如果 H("畫正方形") == 重建的MerkleRoot
-則證明：言行一致
-
-如果不等
-則證明：說謊或未履行
-3. 信任的量化
-solidity
-// 機器人誠實度評分
-function calculateTrustScore(address robot) public view returns (uint256) {
-    uint256 totalPromises = promisesMade[robot];
-    uint256 keptPromises = promisesKept[robot];
-    
-    if (totalPromises == 0) return 0;
-    
-    // 基本分數：履行比例
-    uint256 baseScore = (keptPromises * 100) / totalPromises;
-    
-    // 時間衰減：近期承諾權重更高
-    uint256 recencyBonus = calculateRecencyBonus(robot);
-    
-    // 難度加權：複雜承諾權重更高
-    uint256 difficultyBonus = calculateDifficultyBonus(robot);
-    
-    return baseScore + recencyBonus + difficultyBonus;
+    );
 }
-🔬 技術創新點
-1. 視覺證明壓縮
-cpp
-// 不存整個影片，只存Merkle Root
-// 但保留可驗證性
-class CompressedVisualProof {
-    void create_proof() {
-        // 每幀 → hash → Merkle tree
-        // 最終只有32 bytes的root上鏈
-        // 但能證明「某個特定影格」在影片中
-    }
-    
-    bool verify_frame(bytes32 frame_hash, bytes32[] merkle_path) {
-        // 用Merkle proof驗證單幀
-        // 不需要下載整個影片
-    }
-};
-2. 零知識元素
-solidity
-// 可以擴展為零知識證明
-// 證明「我畫了正方形」但不透露「具體路徑」
-struct ZKProof {
-    bytes proof;
-    bytes32 publicInputs; // 只有承諾hash和執行root
-    bool isValid;
-}
-🎯 實際應用場景
-工業檢測機器人
-text
-承諾：「我檢查了所有焊點」
-證明：每個焊點的檢測照片Merkle root
-應用：汽車製造、電路板檢測
-醫療服務機器人
-text
-承諾：「我按處方給藥」
-證明：藥品識別+病人識別的照片證明
-應用：醫院、養老院
-無人機送貨
-text
-承諾：「我送達包裹到正確地址」
-證明：送達地點的GPS+照片證明
-應用：物流、外賣
-📊 可量化的成果
-承諾到證明時間：< 60秒
+```
 
-驗證成本：~0.01元/次
+### 🔬 技術創新
 
-證明大小：64 bytes（承諾hash + merkle root）
+#### 1. 壓縮式視覺證明
+- 不儲存完整影片，只儲存 32 bytes 的 Merkle Root
+- 保留完整可驗證性，可驗證任意單幀
+- 大幅降低儲存成本
 
-驗證時間：< 3秒
+#### 2. 量化信任系統
+```
+誠實度評分 = 基本分數 + 時間衰減加權 + 難度加權
+基本分數 = (履行承諾數 / 總承諾數) × 100
+```
 
-硬體成本：< 800元
+#### 3. 可擴展至零知識證明
+- 未來可升級為 ZK-SNARK
+- 證明「履行承諾」但不洩漏執行細節
+
+### 🎯 實際應用場景
+
+| 場景 | 承諾 | 證明 | 應用領域 |
+|------|------|------|---------|
+| 工業檢測 | 檢查所有焊點 | 每個焊點的檢測照片 | 汽車製造、電路板 |
+| 醫療服務 | 按處方給藥 | 藥品+病人識別照片 | 醫院、養老院 |
+| 物流配送 | 送達指定地址 | GPS + 送達照片 | 快遞、外賣 |
+| 清潔機器人 | 清潔所有區域 | 每區域清潔前後對比 | 商場、辦公室 |
+
+### 📊 性能指標
+
+- ⚡ **承諾到證明時間**: < 60 秒
+- 💰 **驗證成本**: ~0.01 TWD/次
+- 📦 **證明大小**: 64 bytes (承諾 hash + Merkle root)
+- 🔍 **驗證時間**: < 3 秒
+- 💵 **硬體成本**: < 800 TWD
+
+### 🚀 快速開始
+
+#### 環境需求
+- Arduino IDE 或 PlatformIO
+- Node.js >= 16
+- Hardhat 或 Foundry
+- MetaMask 或其他 Web3 錢包
+
+#### 安裝步驟
+
+1. **Clone 專案**
+```bash
+git clone https://github.com/yourusername/honest-robot.git
+cd honest-robot
+```
+
+2. **硬體端設定**
+```bash
+cd hardware
+# 使用 Arduino IDE 打開 HonestRobot.ino
+# 修改 WiFi 設定並上傳到 ESP32-CAM
+```
+
+3. **部署智能合約**
+```bash
+cd contracts
+npm install
+npx hardhat compile
+npx hardhat deploy --network sepolia
+```
+
+4. **啟動前端**
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+### 🧠 哲學深度
+
+#### 承諾的數學化
+```
+傳統承諾: "我會做 X" (無法驗證)
+數學承諾: Hash("我會做 X") = 0xabc... (不可否認)
+```
+
+#### 信任的量化
+從主觀的「相信」轉變為客觀的「驗證」：
+- 不需要信任機器人
+- 只需要驗證密碼學證明
+
+#### 透明度即信任
+```
+公開承諾 + 公開執行 + 公開驗證 = 無需信任的信任
+```
+
+### 📚 延伸閱讀
+
+- [Merkle Tree 原理](https://en.wikipedia.org/wiki/Merkle_tree)
+- [Commitment Schemes](https://en.wikipedia.org/wiki/Commitment_scheme)
+- [Zero-Knowledge Proofs](https://z.cash/technology/zksnarks/)
+
+### 🤝 貢獻指南
+
+歡迎提交 Issue 和 Pull Request！
+
+1. Fork 專案
+2. 建立特性分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交變更 (`git commit -m 'Add some AmazingFeature'`)
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 開啟 Pull Request
+
+### 📄 授權
+
+MIT License - 詳見 [LICENSE](LICENSE) 文件
+
+### 👥 作者
+
+- 您的名字 - [GitHub](https://github.com/yourusername)
+
+### 🙏 致謝
+
+- Merkle Tree 概念來自 Ralph Merkle
+- 區塊鏈驗證靈感來自 Bitcoin 與 Ethereum
+- ESP32 社群的技術支援
+
+---
+
+## English
+
+### 🎯 Core Concept
+
+**How do you prove a robot isn't lying?**
+
+This project uses blockchain technology to make robot "promises" and "actions" verifiable, implementing a true "walk the talk" proof system.
+
+**How it works:**
+```
+Robot Claims → Generate Commitment Hash → Execute Action → Produce Proof → On-chain Verification
+```
+
+### ✨ Key Features
+
+- 🔒 **Undeniable Commitments** - Robots cannot deny their promises retroactively
+- 📸 **Visual Proof** - Camera captures actual execution process
+- ⛓️ **Blockchain Verification** - All proofs permanently recorded and publicly verifiable
+- 💰 **Low-Cost Implementation** - Total hardware cost under $25 USD
+- ⚡ **Real-time Verification** - Anyone can verify robot honesty in under 3 seconds
+
+### 🚀 Quick Start
+
+See Chinese section above for detailed setup instructions.
+
+### 📊 Performance Metrics
+
+- ⚡ **Commitment to Proof Time**: < 60 seconds
+- 💰 **Verification Cost**: ~$0.0003 USD/verification
+- 📦 **Proof Size**: 64 bytes (commitment hash + Merkle root)
+- 🔍 **Verification Time**: < 3 seconds
+- 💵 **Hardware Cost**: < $25 USD
+
+### 📄 License
+
+MIT License - see [LICENSE](LICENSE) file for details
+
+---
+
+**⭐ If you find this project interesting, please consider giving it a star!**
